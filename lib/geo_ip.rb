@@ -36,8 +36,17 @@ class GeoIp
     raise "Invalid timezone"   unless [true, false].include?(@timezone)
     uri = "#{SERVICE_URL}#{@country ? COUNTRY_API : CITY_API}?key=#{self.api_key}&ip=#{ip}&output=json&timezone=#{@timezone}"
     url = URI.parse(uri)
-    reply = JSON.parse(Net::HTTP.get(url))
-    location = convert_keys reply
+    http = Net::HTTP.new(url.host, url.port)
+    http.read_timeout = 3
+    http.open_timeout = 3
+    reply = JSON.parse(http.start { http.request(Net::HTTP::Get.new("#{url.path}?#{url.query}")) })
+    reply.is_a?(Net::HTTPSuccess) ? (location = convert_keys reply) : nil
+    rescue Timeout::Error
+      Rails.logger.warn("GeoIP : Timeout")
+      nil
+    rescue
+      Rails.logger.warn("GeoIP : Error accessing URL")
+      nil
   end
 
   private
